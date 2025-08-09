@@ -37,6 +37,13 @@ __pycache__/
 py/build/
 py/dist/
 py/*.egg-info/
+py/**/__pycache__/
+py/.venv/
+py/.mypy_cache/
+py/.pytest_cache/
+py/wibesocket/*.so
+py/wibesocket/*.pyd
+py/site/
 
 # Editors/OS
 .DS_Store
