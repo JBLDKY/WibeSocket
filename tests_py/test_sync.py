@@ -6,7 +6,7 @@ import unittest
 import wibesocket
 
 
-ECHO_URI = os.environ.get("WIBESOCKET_TEST_ECHO_URI", "ws://echo.websocket.events")
+ECHO_URI = os.environ.get("WIBESOCKET_TEST_ECHO_URI", "ws://127.0.0.1:8765")
 
 
 class TestSyncClient(unittest.TestCase):
