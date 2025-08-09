@@ -1,3 +1,3 @@
-from ..wibesocket_wrappers import *  # re-export stable API
+from wibesocket_wrappers import *  # re-export stable API
 
 

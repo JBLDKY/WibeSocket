@@ -40,13 +40,8 @@ class Frame:
         self.release()
 
     def __del__(self) -> None:
-        # Best-effort release if user forgot; GC timing is not guaranteed
-        if not self._released:
-            try:
-                _c.release_payload(self.conn)
-            except Exception:
-                pass
-            self._released = True
+        # Avoid C calls in GC context; rely on explicit release or context manager
+        self._released = True
 
     def text(self, errors: str = "strict") -> str:
         return self.data.tobytes().decode("utf-8", errors)
@@ -114,6 +109,7 @@ class WebSocket:
             raise RuntimeError("ping failed")
 
     def close(self, code: int = 1000, reason: Optional[str] = None) -> None:
+        # Explicit close order to avoid destructor-based closes
         _c.send_close(self._c, code, reason or "")
         _c.close(self._c)
 

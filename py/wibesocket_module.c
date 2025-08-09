@@ -7,10 +7,7 @@
 #define CONN_CAPSULE_NAME "wibesocket.conn"
 
 static void conn_capsule_destructor(PyObject* capsule) {
-    void* ptr = PyCapsule_GetPointer(capsule, CONN_CAPSULE_NAME);
-    if (ptr) {
-        (void)wibesocket_close((wibesocket_conn_t*)ptr);
-    }
+    (void)capsule; /* no-op destructor; require explicit close via API */
 }
 
 static wibesocket_conn_t* get_conn(PyObject* capsule) {
@@ -104,6 +101,16 @@ static PyObject* py_close(PyObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+static PyObject* py_send_close(PyObject* self, PyObject* args) {
+    PyObject* capsule; int code; const char* reason = NULL;
+    if (!PyArg_ParseTuple(args, "Oi|z", &capsule, &code, &reason)) return NULL;
+    wibesocket_conn_t* c = get_conn(capsule);
+    if (!c) Py_RETURN_FALSE;
+    wibesocket_error_t e = wibesocket_send_close(c, (uint16_t)code, reason);
+    if (e != WIBESOCKET_OK) Py_RETURN_FALSE;
+    Py_RETURN_TRUE;
+}
+
 static PyObject* py_fileno(PyObject* self, PyObject* args) {
     PyObject* capsule; if (!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
     wibesocket_conn_t* c = get_conn(capsule); if (!c) Py_RETURN_NONE;
@@ -125,6 +132,7 @@ static PyMethodDef Methods[] = {
     {"recv", (PyCFunction)py_recv, METH_VARARGS | METH_KEYWORDS, "Receive a message; returns (type, bytes, is_final) or None on timeout."},
     {"fileno", py_fileno, METH_VARARGS, "Return underlying socket fd for asyncio integration."},
     {"release_payload", py_release_payload, METH_VARARGS, "Release pinned recv payload to allow subsequent recv calls."},
+    {"send_close", py_send_close, METH_VARARGS, "Send a close frame (code, optional reason)."},
     {"close", py_close, METH_VARARGS, "Close connection."},
     {NULL, NULL, 0, NULL}
 };

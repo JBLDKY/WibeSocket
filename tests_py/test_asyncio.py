@@ -3,7 +3,8 @@ import asyncio
 import time
 import unittest
 
-import wibesocket
+from wibesocket import WebSocket
+from wibesocket import AsyncWebSocket
 
 ECHO_URI = os.environ.get("WIBESOCKET_TEST_ECHO_URI", "ws://127.0.0.1:8765")
 
@@ -11,36 +12,19 @@ ECHO_URI = os.environ.get("WIBESOCKET_TEST_ECHO_URI", "ws://127.0.0.1:8765")
 class TestAsyncioClient(unittest.IsolatedAsyncioTestCase):
     async def test_asyncio_connect_send_recv(self):
         print(f"[asyncio] connecting to {ECHO_URI}")
-        conn = wibesocket.connect(ECHO_URI, handshake_timeout_ms=4000, max_frame_size=1 << 20)
-        if conn is None:
+        try:
+            ws = WebSocket.connect(ECHO_URI, handshake_timeout_ms=4000, max_frame_size=1 << 20)
+        except Exception:
             self.skipTest("connect failed (no network or server), skipping")
             return
-
-        loop = asyncio.get_running_loop()
-        fd = wibesocket.fileno(conn)
-        fut = loop.create_future()
-
-        def on_readable():
-            res = wibesocket.recv(conn, timeout_ms=0)
-            if res is None:
-                return
-            if not fut.done():
-                fut.set_result(res)
-
-        loop.add_reader(fd, on_readable)
-        try:
-            payload = f"hello-async-{int(time.time())}"
-            ok = wibesocket.send_text(conn, payload)
-            print("[asyncio] send_text:", ok)
-            self.assertTrue(ok)
-
-            res = await asyncio.wait_for(fut, timeout=5.0)
-            ftype, data, is_final = res
-            print("[asyncio] recv:", ftype, data.tobytes()[:64], "final:", is_final)
-            self.assertIn(b"hello-async-", data.tobytes())
-        finally:
-            loop.remove_reader(fd)
-            wibesocket.close(conn)
+        aws = AsyncWebSocket(ws)
+        payload = f"hello-async-{int(time.time())}"
+        aws.send_text(payload)
+        fr = await aws.recv(timeout=5.0)
+        with fr:
+            print("[asyncio] recv:", fr.type, fr.data.tobytes()[:64], "final:", fr.is_final)
+            self.assertIn("hello-async-", fr.text(errors="ignore"))
+        aws.close()
 
 
 if __name__ == "__main__":
