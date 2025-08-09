@@ -434,4 +434,13 @@ int wibesocket_fileno(const wibesocket_conn_t* conn) {
     return c ? c->fd : -1;
 }
 
+wibesocket_error_t wibesocket_poll_events(wibesocket_conn_t* conn, int timeout_ms) {
+    wibesocket_conn* c = (wibesocket_conn*)conn;
+    if (!c || c->epfd < 0) return WIBESOCKET_ERROR_INVALID_ARGS;
+    int w = wait_epoll(c->epfd, timeout_ms);
+    if (w > 0) return WIBESOCKET_OK;
+    if (w == 0) return WIBESOCKET_ERROR_TIMEOUT;
+    return WIBESOCKET_ERROR_NETWORK;
+}
+
 
