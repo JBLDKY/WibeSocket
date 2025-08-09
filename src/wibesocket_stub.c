@@ -6,6 +6,8 @@
 struct wibesocket_conn {
     wibesocket_state_t state;
     wibesocket_error_t last_error;
+    int fd;
+    int payload_pinned;
 };
 
 static const char* k_error_strings[] = {
@@ -28,6 +30,8 @@ wibesocket_conn_t* wibesocket_connect(const char* uri, const wibesocket_config_t
     if (!c) return NULL;
     c->state = WIBESOCKET_STATE_CONNECTING;
     c->last_error = WIBESOCKET_OK;
+    c->fd = -1;
+    c->payload_pinned = 0;
     return c;
 }
 
@@ -84,4 +88,23 @@ const char* wibesocket_error_string(wibesocket_error_t error) {
     return "unknown";
 }
 
+void wibesocket_retain_payload(wibesocket_conn_t* conn) {
+    if (!conn) return;
+    conn->payload_pinned = 1;
+}
 
+void wibesocket_release_payload(wibesocket_conn_t* conn) {
+    if (!conn) return;
+    conn->payload_pinned = 0;
+}
+
+int wibesocket_fileno(const wibesocket_conn_t* conn) {
+    if (!conn) return -1;
+    return conn->fd;
+}
+
+wibesocket_error_t wibesocket_poll_events(wibesocket_conn_t* conn, int timeout_ms) {
+    (void)timeout_ms;
+    if (!conn) return WIBESOCKET_ERROR_INVALID_ARGS;
+    return WIBESOCKET_ERROR_TIMEOUT;
+}

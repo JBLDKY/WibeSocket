@@ -88,6 +88,7 @@ static PyObject* py_recv(PyObject* self, PyObject* args, PyObject* kwargs) {
         return NULL;
     }
     /* Zero-copy: create memoryview over the payload; caller must call release_payload(conn) */
+    wibesocket_retain_payload(c);
     PyObject* mem = PyMemoryView_FromMemory((char*)msg.payload, (Py_ssize_t)msg.payload_len, PyBUF_READ);
     if (!mem) { wibesocket_release_payload(c); return NULL; }
     return Py_BuildValue("iNi", (int)msg.type, mem, (int)msg.is_final);
@@ -125,6 +126,17 @@ static PyObject* py_release_payload(PyObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+static PyObject* py_poll_events(PyObject* self, PyObject* args, PyObject* kwargs) {
+    PyObject* capsule; int timeout_ms = 0; static char* kwlist[] = {"conn", "timeout_ms", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i", kwlist, &capsule, &timeout_ms)) return NULL;
+    wibesocket_conn_t* c = get_conn(capsule); if (!c) Py_RETURN_FALSE;
+    wibesocket_error_t e = wibesocket_poll_events(c, timeout_ms);
+    if (e == WIBESOCKET_OK) Py_RETURN_TRUE;
+    if (e == WIBESOCKET_ERROR_TIMEOUT) Py_RETURN_FALSE;
+    PyErr_SetString(PyExc_RuntimeError, wibesocket_error_string(e));
+    return NULL;
+}
+
 static PyMethodDef Methods[] = {
     {"connect", (PyCFunction)py_connect, METH_VARARGS | METH_KEYWORDS, "Connect to a WebSocket (non-blocking)."},
     {"send_text", py_send_text, METH_VARARGS, "Send a text message (str or bytes)."},
@@ -132,6 +144,7 @@ static PyMethodDef Methods[] = {
     {"recv", (PyCFunction)py_recv, METH_VARARGS | METH_KEYWORDS, "Receive a message; returns (type, bytes, is_final) or None on timeout."},
     {"fileno", py_fileno, METH_VARARGS, "Return underlying socket fd for asyncio integration."},
     {"release_payload", py_release_payload, METH_VARARGS, "Release pinned recv payload to allow subsequent recv calls."},
+    {"poll_events", (PyCFunction)py_poll_events, METH_VARARGS | METH_KEYWORDS, "Poll for readiness; returns True if ready, False on timeout."},
     {"send_close", py_send_close, METH_VARARGS, "Send a close frame (code, optional reason)."},
     {"close", py_close, METH_VARARGS, "Close connection."},
     {NULL, NULL, 0, NULL}

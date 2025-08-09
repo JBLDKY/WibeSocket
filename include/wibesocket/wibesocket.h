@@ -89,6 +89,11 @@ void               wibesocket_release_payload(wibesocket_conn_t* conn);
 /* File descriptor access for event loop integration */
 int                wibesocket_fileno(const wibesocket_conn_t* conn);
 
+/* Poll for I/O readiness without reading; backend should use epoll/kqueue/io_uring.
+ * timeout_ms: 0 for non-blocking, -1 for infinite. Returns OK on readiness or TIMEOUT.
+ */
+wibesocket_error_t wibesocket_poll_events(wibesocket_conn_t* conn, int timeout_ms);
+
 #ifdef __cplusplus
 }
 #endif
