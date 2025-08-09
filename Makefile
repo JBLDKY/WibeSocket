@@ -1,4 +1,4 @@
-.PHONY: build test clean example
+.PHONY: build test clean example bench
 
 build:
 	cmake -S . -B build
@@ -9,6 +9,9 @@ test: build
 
 example: build
 	./build/example_simple_echo ws://echo.websocket.events/
+
+bench: build
+	python3 bench/run_bench.py $(URI)
 
 clean:
 	rm -rf build
