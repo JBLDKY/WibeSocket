@@ -31,7 +31,13 @@ typedef struct wibesocket_conn {
     uint8_t* recv_buf;
     size_t   recv_size;
     size_t   recv_cap;
+    size_t   pending_consume;
     ws_parser_t parser;
+
+    /* FFI payload lifetime pinning */
+    const uint8_t* pinned_payload;
+    size_t         pinned_len;
+    int            pinned_refcnt;
 } wibesocket_conn;
 
 static int set_nonblocking(int fd) {
@@ -219,6 +225,7 @@ wibesocket_error_t wibesocket_send_close(wibesocket_conn_t* conn, uint16_t code,
 wibesocket_error_t wibesocket_recv(wibesocket_conn_t* conn, wibesocket_message_t* msg, int timeout_ms) {
     wibesocket_conn* c = (wibesocket_conn*)conn;
     if (!c || c->state != WIBESOCKET_STATE_OPEN) return WIBESOCKET_ERROR_NOT_READY;
+    if (c->pinned_refcnt > 0) return WIBESOCKET_ERROR_NOT_READY;
     int w = wait_epoll(c->epfd, timeout_ms);
     if (w <= 0) return WIBESOCKET_ERROR_TIMEOUT;
     ssize_t rd = recv(c->fd, c->recv_buf + c->recv_size, c->recv_cap - c->recv_size, 0);
@@ -230,12 +237,8 @@ wibesocket_error_t wibesocket_recv(wibesocket_conn_t* conn, wibesocket_message_t
     ws_parser_status_t st = ws_parser_feed(&c->parser, c->recv_buf, c->recv_size, &consumed, &fr);
     if (st == WS_PARSER_NEED_MORE) return WIBESOCKET_ERROR_NOT_READY;
     if (st < 0) { c->last_error = WIBESOCKET_ERROR_PROTOCOL; return c->last_error; }
-
-    /* Slide remaining bytes */
-    if (consumed > 0 && consumed <= c->recv_size) {
-        memmove(c->recv_buf, c->recv_buf + consumed, c->recv_size - consumed);
-        c->recv_size -= consumed;
-    }
+    /* Defer sliding until payload released to keep zero-copy pointer valid */
+    c->pending_consume = consumed;
 
     /* Handle control frames */
     if (fr.type == WS_OPCODE_PING) {
@@ -254,6 +257,10 @@ wibesocket_error_t wibesocket_recv(wibesocket_conn_t* conn, wibesocket_message_t
     msg->payload = fr.payload;
     msg->payload_len = fr.payload_len;
     msg->is_final = fr.is_final;
+    /* Pin the payload region to avoid reuse/memmove until released by FFI */
+    c->pinned_payload = (const uint8_t*)fr.payload;
+    c->pinned_len = fr.payload_len;
+    c->pinned_refcnt = 1;
     return WIBESOCKET_OK;
 }
 
@@ -295,6 +302,33 @@ static const char* k_error_strings[] = {
 const char* wibesocket_error_string(wibesocket_error_t error) {
     size_t n = sizeof(k_error_strings)/sizeof(k_error_strings[0]);
     return ((unsigned)error < n) ? k_error_strings[error] : "unknown";
+}
+
+void wibesocket_retain_payload(wibesocket_conn_t* conn) {
+    wibesocket_conn* c = (wibesocket_conn*)conn;
+    if (!c) return;
+    if (c->pinned_refcnt > 0) c->pinned_refcnt++;
+}
+
+void wibesocket_release_payload(wibesocket_conn_t* conn) {
+    wibesocket_conn* c = (wibesocket_conn*)conn;
+    if (!c) return;
+    if (c->pinned_refcnt > 0) c->pinned_refcnt--;
+    if (c->pinned_refcnt == 0) {
+        /* After release, compact recv buffer by consuming the parsed frame bytes */
+        if (c->pending_consume > 0 && c->pending_consume <= c->recv_size) {
+            memmove(c->recv_buf, c->recv_buf + c->pending_consume, c->recv_size - c->pending_consume);
+            c->recv_size -= c->pending_consume;
+            c->pending_consume = 0;
+        }
+        c->pinned_payload = NULL;
+        c->pinned_len = 0;
+    }
+}
+
+int wibesocket_fileno(const wibesocket_conn_t* conn) {
+    const wibesocket_conn* c = (const wibesocket_conn*)conn;
+    return c ? c->fd : -1;
 }
 
 

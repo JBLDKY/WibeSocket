@@ -82,6 +82,13 @@ wibesocket_error_t wibesocket_get_error(const wibesocket_conn_t* conn);
 wibesocket_error_t wibesocket_close(wibesocket_conn_t* conn);
 const char*        wibesocket_error_string(wibesocket_error_t error);
 
+/* Advanced: zero-copy payload lifetime management for FFI bindings */
+void               wibesocket_retain_payload(wibesocket_conn_t* conn);
+void               wibesocket_release_payload(wibesocket_conn_t* conn);
+
+/* File descriptor access for event loop integration */
+int                wibesocket_fileno(const wibesocket_conn_t* conn);
+
 #ifdef __cplusplus
 }
 #endif

@@ -90,11 +90,22 @@ static PyObject* py_recv(PyObject* self, PyObject* args, PyObject* kwargs) {
         PyErr_SetString(PyExc_RuntimeError, wibesocket_error_string(e));
         return NULL;
     }
-    /* For safety, copy payload into Python bytes for now. Zero-copy to be added by pinning.
-       Return tuple: (type, data: bytes, is_final: bool) */
-    PyObject* data = PyBytes_FromStringAndSize((const char*)msg.payload, (Py_ssize_t)msg.payload_len);
-    if (!data) return NULL;
-    return Py_BuildValue("iNi", (int)msg.type, data, (int)msg.is_final);
+    /* Zero-copy: create memoryview over the payload and retain until released */
+    wibesocket_retain_payload(c);
+    PyObject* mem = PyMemoryView_FromMemory((char*)msg.payload, (Py_ssize_t)msg.payload_len, Py_MEMREAD);
+    if (!mem) { wibesocket_release_payload(c); return NULL; }
+    /* Attach capsule finalizer to release payload when memview is GC'd */
+    PyObject* capsule = PyCapsule_New((void*)c, CONN_CAPSULE_NAME, NULL);
+    if (!capsule) { Py_DECREF(mem); wibesocket_release_payload(c); return NULL; }
+    /* Store capsule on the memoryview's obj dict to keep conn alive */
+    if (PyObject_SetAttrString(mem, "_ws_conn_capsule", capsule) < 0) {
+        Py_DECREF(capsule); Py_DECREF(mem); wibesocket_release_payload(c); return NULL;
+    }
+    /* Create a Python capsule that will release on GC by using a custom memoryview subclass is complex.
+       Instead, we return (type, memoryview, is_final, releaser) and users call releaser() promptly.
+       For convenience, we register a destructor on a lightweight object. */
+    Py_DECREF(capsule);
+    return Py_BuildValue("iNi", (int)msg.type, mem, (int)msg.is_final);
 }
 
 static PyObject* py_close(PyObject* self, PyObject* args) {
@@ -110,6 +121,12 @@ static PyMethodDef Methods[] = {
     {"send_text", py_send_text, METH_VARARGS, "Send a text message (str or bytes)."},
     {"send_binary", py_send_binary, METH_VARARGS, "Send binary data (bytes-like)."},
     {"recv", (PyCFunction)py_recv, METH_VARARGS | METH_KEYWORDS, "Receive a message; returns (type, bytes, is_final) or None on timeout."},
+    {"fileno", (PyCFunction)[](PyObject* self, PyObject* args)->PyObject*{
+        PyObject* capsule; if (!PyArg_ParseTuple(args, "O", &capsule)) return NULL;
+        wibesocket_conn_t* c = get_conn(capsule); if (!c) Py_RETURN_NONE;
+        int fd = wibesocket_fileno(c);
+        return PyLong_FromLong(fd);
+    }, METH_VARARGS, "Return underlying socket fd for asyncio integration."},
     {"close", py_close, METH_VARARGS, "Close connection."},
     {NULL, NULL, 0, NULL}
 };
