@@ -8,6 +8,9 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#if defined(__linux__)
+#include <sys/random.h>
+#endif
 #include <netdb.h>
 #include <time.h>
 #include <stdio.h>
@@ -188,12 +191,12 @@ static wibesocket_error_t send_frame(wibesocket_conn* c, ws_opcode_t opcode, con
     uint8_t mask[4]; gen_mask(mask);
     size_t hdr = 2 + ((len <= 125) ? 0 : (len <= 0xFFFF ? 2 : 8)) + 4;
     size_t need = hdr + len;
-    uint8_t* buf = (need <= 16384) ? (uint8_t*)alloca(need) : (uint8_t*)malloc(need);
+    uint8_t* buf = (uint8_t*)malloc(need);
     if (!buf) return WIBESOCKET_ERROR_MEMORY;
     size_t n = ws_build_frame(buf, need, 1, opcode, mask, (const uint8_t*)data, len);
-    if (n == 0) { if (buf != (uint8_t*)alloca(0)) free(buf); return WIBESOCKET_ERROR_BUFFER_FULL; }
+    if (n == 0) { free(buf); return WIBESOCKET_ERROR_BUFFER_FULL; }
     ssize_t wr = send(c->fd, buf, n, 0);
-    if (buf != (uint8_t*)alloca(0)) free(buf);
+    free(buf);
     if (wr < 0) return WIBESOCKET_ERROR_NETWORK;
     return WIBESOCKET_OK;
 }
@@ -242,12 +245,22 @@ wibesocket_error_t wibesocket_recv(wibesocket_conn_t* conn, wibesocket_message_t
 
     /* Handle control frames */
     if (fr.type == WS_OPCODE_PING) {
-        (void)wibesocket_send_ping(conn, fr.payload, fr.payload_len); /* echo ping -> pong using same API */
+        /* Respond with PONG carrying same payload */
+        (void)send_frame(c, WS_OPCODE_PONG, fr.payload, fr.payload_len);
         return WIBESOCKET_ERROR_NOT_READY;
     }
     if (fr.type == WS_OPCODE_CLOSE) {
-        (void)wibesocket_send_close(conn, WIBESOCKET_CLOSE_NORMAL, "");
+        /* Parse close code if present */
+        uint16_t code = WIBESOCKET_CLOSE_NORMAL;
+        if (fr.payload_len >= 2) {
+            const uint8_t* b = (const uint8_t*)fr.payload;
+            code = (uint16_t)((b[0] << 8) | b[1]);
+        }
+        if (c->state != WIBESOCKET_STATE_CLOSING) {
+            (void)wibesocket_send_close(conn, code, NULL);
+        }
         c->state = WIBESOCKET_STATE_CLOSED;
+        if (c->fd >= 0) { close(c->fd); c->fd = -1; }
         return WIBESOCKET_ERROR_CLOSED;
     }
 

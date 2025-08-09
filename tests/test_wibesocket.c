@@ -21,6 +21,10 @@ int main(void) {
 
         wibesocket_conn_t* c = wibesocket_connect(uri, &cfg);
         if (c) {
+            const char* msg = "ping-from-c";
+            (void)wibesocket_send_text(c, msg, strlen(msg));
+            wibesocket_message_t m; memset(&m,0,sizeof(m));
+            (void)wibesocket_recv(c, &m, 1000);
             (void)wibesocket_send_close(c, WIBESOCKET_CLOSE_NORMAL, "bye");
             (void)wibesocket_close(c);
         }
