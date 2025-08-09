@@ -24,6 +24,10 @@ int ws_build_handshake_request(const char* host, int port, const char* path,
                                const char* protocol,
                                char* out, size_t out_cap);
 
+/* Validate a server handshake HTTP response against expected accept value.
+ * Returns 0 on success, negative on failure. */
+int ws_validate_handshake_response(const char* response, const char* expected_accept);
+
 #endif /* WIBESOCKET_HANDSHAKE_H */
 
 

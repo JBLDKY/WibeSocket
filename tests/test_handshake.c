@@ -32,9 +32,37 @@ static void test_request_build_minimal(void) {
     }
 }
 
+static void test_validate_response_ok(void) {
+    const char* key = "dGhlIHNhbXBsZSBub25jZQ==";
+    char accept[29];
+    ws_compute_accept(key, accept);
+    const char* resp =
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n"
+        "\r\n";
+    assert(ws_validate_handshake_response(resp, accept) == 0);
+}
+
+static void test_validate_response_fail(void) {
+    const char* key = "dGhlIHNhbXBsZSBub25jZQ==";
+    char accept[29];
+    ws_compute_accept(key, accept);
+    const char* resp_bad =
+        "HTTP/1.1 101 Switching Protocols\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        "Sec-WebSocket-Accept: WRONG\r\n"
+        "\r\n";
+    assert(ws_validate_handshake_response(resp_bad, accept) != 0);
+}
+
 int main(void) {
     test_accept_known_vector();
     test_request_build_minimal();
+    test_validate_response_ok();
+    test_validate_response_fail();
     printf("test_handshake OK\n");
     return 0;
 }
