@@ -1,0 +1,17 @@
+{
+  "docs": [
+    "./rules/00_PROJECT_OVERVIEW.mdc",
+    "./rules/01_RULES.mdc",
+    "./rules/02_NETWORKING.mdc",
+    "./rules/03_PERFORMANCE.mdc",
+    "./rules/04_PYTHON_BINDINGS.mdc",
+    "./rules/05_SECURITY.mdc",
+    "./rules/06_CI.mdc",
+    "./rules/07_TESTING.mdc",
+    "./rules/08_BENCHMARKS.mdc",
+    "./rules/09_STYLE_GUIDE.mdc",
+    "./rules/10_CONTRIBUTING.mdc",
+    "./rules/11_LICENSE.mdc"
+  ]
+}
+ 

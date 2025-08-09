@@ -1,4 +1,5 @@
 ---
+description: This is for the project directory structure
 alwaysApply: false
 ---
 Short description: Ultra-fast WebSocket core written in C, callable from Python. Designed for minimal syscalls, zero-copy hot paths, and asyncio-friendly Python bindings.
