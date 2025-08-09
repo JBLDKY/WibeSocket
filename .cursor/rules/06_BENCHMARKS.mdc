@@ -1,0 +1,41 @@
+---
+description: this is regarding benchmarking
+alwaysApply: false
+---
+Benchmarking guide and scripts
+
+Benchmarks to include:
+
+Throughput (messages/sec) with large payloads (16KB, 64KB) and small payloads (125B)
+
+Latency p50/p90/p99 for request/response patterns
+
+Concurrency scaling: 1..N connections per core
+
+Comparison harness: libwebsockets, websocat, and a simple socket echo server
+
+Example harness tools:
+
+wrk, wrk2, websocat, C harness using tokio/mio
+
+Metrics to store: throughput, latency (p50/p90/p99), CPU usage, syscalls/sec, bytes/sec
+
+Performance gating: CI should fail if regressions >5% vs baseline stored in repo/bench/baseline.jsonBenchmarking guide and scripts
+
+Benchmarks to include:
+
+Throughput (messages/sec) with large payloads (16KB, 64KB) and small payloads (125B)
+
+Latency p50/p90/p99 for request/response patterns
+
+Concurrency scaling: 1..N connections per core
+
+Comparison harness: libwebsockets, websocat, and a simple socket echo server
+
+Example harness tools:
+
+wrk, wrk2, websocat, custom C harness using tokio/mio
+
+Metrics to store: throughput, latency (p50/p90/p99), CPU usage, syscalls/sec, bytes/sec
+
+Performance gating: CI should fail if regressions >5% vs baseline stored in repo/bench/baseline.json

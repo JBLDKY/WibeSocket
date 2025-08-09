@@ -1,0 +1,13 @@
+---
+description: This is for the python bindings
+alwaysApply: false
+---
+Python binding rules and expectations
+
+Produce a CPython extension module (.so/.pyd) compiled with the right ABI.
+
+Asyncio integration: provide an asyncio.Protocol or a custom await-able object that uses loop.add_reader/loop.add_writer or uses asyncio.get_event_loop().run_in_executor only for non-hot tasks (avoid run_in_executor for per-message work).
+
+Avoid copying when returning data. Return memoryview wrapping a buffer that remains valid until the next recv() or until the user calls release().
+
+Document lifetime and ownership clearly in the Python docstrings.

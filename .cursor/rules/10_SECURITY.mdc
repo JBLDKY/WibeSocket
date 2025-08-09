@@ -1,0 +1,15 @@
+---
+description: security
+alwaysApply: false
+---
+Security considerations
+
+Do not implement TLS in core. Document safe TLS termination patterns.
+
+Validate handshake headers strictly; reject invalid Sec-WebSocket-Key or upgrade headers.
+
+Rate-limit control frames (ping/pong) to avoid CPU exhaustion.
+
+Handle oversized frames gracefully (configurable limits).
+
+Avoid exposing raw FDs to Python without clear ownership and lifetime docs.

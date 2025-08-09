@@ -1,0 +1,11 @@
+---
+description: This is for the styling of the code
+alwaysApply: false
+---
+Follow MISRA-ish discipline: explicit ownership, no implicit casts, use sanitizers.
+
+General:
+
+Document hot-path reasoning with inline comments and microbenchmarks where choices are non-obvious.
+
+Keep PRs small and focused. Each performance optimization must include before/after microbenchmark.

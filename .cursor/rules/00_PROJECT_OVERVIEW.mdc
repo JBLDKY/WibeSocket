@@ -1,0 +1,15 @@
+---
+alwaysApply: false
+---
+Short description: Ultra-fast WebSocket core written in C, callable from Python. Designed for minimal syscalls, zero-copy hot paths, and asyncio-friendly Python bindings.
+Primary goals: correctness (RFC 6455), maximum throughput and low latency, clean FFI surface for Python, thorough testing and benchmarking.
+
+Contact / owner: <your-name-or-team>
+Repo layout expectations:
+  - src/        -> core C source
+  - py/         -> Python wrapper / package
+  - bench/      -> benchmark scripts and harnesses
+  - tests/      -> unit + fuzz + integration tests
+  - ci/         -> CI config and performance-gating scripts
+  - docs/       -> design docs and RFCs:w
+  

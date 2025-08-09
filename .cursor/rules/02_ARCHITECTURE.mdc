@@ -1,0 +1,20 @@
+---
+description: This is regarding the architecture
+alwaysApply: false
+---
+Architecture Blueprint (minimal, high-performance)
+
+Components:
+ - Listener / Acceptor: non-blocking socket, uses epoll/kqueue/io_uring.
+ - Connection object: holds socket fd, read/write rings, state machine for parsing frames.
+ - Parser: stateful incremental frame parser, handles fragmentation and control frames.
+ - Scheduler: per-core worker threads pinned to cores (optional) that run event loop and dispatch callbacks.
+ - FFI layer: A thin shim exposing C ABI (C public symbols) with async hooks for Python integration.
+
+Dataflow (recv): kernel -> readv -> ring buffer -> parser -> payload slice -> hand off to Python via memoryview
+Dataflow (send): Python provides buffer/memoryview -> enqueue to send ring -> writev batched -> kernel
+
+Design notes:
+ - Keep ownership boundaries explicit. Only one owner of a buffer at a time.
+ - Use reference counting only at FFI boundary when necessary; avoid in hot paths.
+ - Allow zero-copy when message lifetime allows it; otherwise copy into preallocated slab.

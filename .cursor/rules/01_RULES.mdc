@@ -1,0 +1,46 @@
+---
+alwaysApply: true
+---
+User Rules for Cursor – Ultra-Fast WebSocket Project
+
+(Enforceable checklist for the AI coding agent)
+
+1) Languages & Scope
+ - Core:  C. No other languages for the fast path.
+ - Implement WebSocket features per RFC 6455: handshake, frames, masking, continuation frames, control frames (ping/pong/close), extensions only if essential.
+ - No third-party WebSocket crates/libraries for protocol core. Allowed: small syscall wrappers or OS-specific crates (e.g. mio) only for non-protocol infra if explicitly justified.
+
+2) Performance Constraints
+ - Use epoll/kqueue/io_uring backend. Select/poll is forbidden.
+ - Minimize syscalls: prefer readv/writev or equivalent batched I/O.
+ - Zero-copy for payload delivery: hand off buffers to Python as memoryview without copying when safe.
+ - Avoid heap allocations on hot paths; use preallocated ring buffers / slab pools.
+ - No dynamic formatting/logging on hot paths.
+ - Benchmarks must be included and the implementation should aim to outperform libwebsockets on throughput/latency.
+
+3) Safety & Correctness
+ - Follow RFC 6455 strictly for interoperability.
+ - build with AddressSanitizer/UBSan/Valgrind in CI.
+ - Fuzz tests for handshake and frame parsing.
+
+4) API & Python Integration
+ - CPython C API (C). No heavy FFI frameworks.
+ - Provide both async (asyncio) and sync APIs. Async must integrate with Python event loop with no blocking.
+ - Expose non-copying `recv()` that returns a `memoryview`/`bytes` when appropriate.
+ - Provide connection pooling and graceful shutdown.
+
+5) Tests & Benchmarks
+ - Unit tests for every parser state and edgecase.
+ - Fuzzing harness (e.g., cargo-fuzz or afl) for frame parsing/handshake.
+ - Bench scripts comparing with libwebsockets, websocat, and similar.
+ - CI gates: correctness + performance regression (<5% slower than baseline fails).
+
+6) Packaging & Build
+ - Single shared library (.so/.pyd/.dylib) usable from Python.
+ - CMake/Meson for C. Support linux x86_64 + macos arm64.
+ - Wheels via maturin or equivalent.
+
+7) Non-negotiables
+ - No TLS in core; assume TLS terminator upstream.
+ - No GC or runtime reflection.
+ - Keep hot-path abstractions minimal.

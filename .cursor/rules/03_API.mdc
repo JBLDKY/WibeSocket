@@ -1,0 +1,32 @@
+---
+description: This is for the python API
+alwaysApply: false
+---
+High-level API (Python)
+
+Async usage (asyncio):
+
+```py
+from ultraws import WebSocketClient
+
+async def main():
+    ws = await WebSocketClient.connect("ws://127.0.0.1:9000")
+    await ws.send(b"hello")             # non-blocking, awaits send completion
+    msg = await ws.recv()                # memoryview/bytes — prefer memoryview when zero-copy
+    await ws.close()
+```
+
+Sync usage:
+
+```py
+from ultraws import WebSocketClient
+ws = WebSocketClient.connect_sync("ws://...")
+ws.send_sync(b"...")
+ws.close_sync()
+```
+
+FFI considerations:
+
+Expose connect, send, recv, close, poll_events at C ABI level.
+
+Provide a callback registration API for event-driven users.

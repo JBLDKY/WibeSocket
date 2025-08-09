@@ -1,0 +1,17 @@
+---
+description: This is for the packaging
+alwaysApply: false
+---
+Produce wheel via auditwheel (linux) and proper macOS packaging.
+
+Versioning:
+
+Semantic versioning.
+
+Include git commit hash in artifact metadata for traceability.
+
+Release checklist:
+
+Run full benchmark suite; upload baseline.
+
+Tag release and build wheels for supported platforms.

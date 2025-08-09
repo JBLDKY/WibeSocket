@@ -1,0 +1,23 @@
+---
+description: CI pipeline
+alwaysApply: false
+---
+CI pipeline (suggested)
+
+Steps:
+
+Checkout + toolchain
+
+Build release artifact
+
+Run unit tests
+
+Run static analyzers (clang-tidy for C)
+
+Run small benchmark suite (short duration) and compare vs stored baseline
+
+Build Python wheel and run Python integration tests
+
+Performance gating: fail PR if performance regressions >5% on measured benchmarks.
+
+Notes: use self-hosted runners with consistent hardware for reliable benchmarking.

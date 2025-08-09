@@ -1,0 +1,31 @@
+---
+description: Testing / unit tests / integration tests
+alwaysApply: false
+---
+Testing matrix
+
+Unit tests:
+
+Frame parsing state machine tests
+
+Control frame handling for ping/pong/close
+
+Masking/unmasking correctness
+
+Integration tests:
+
+Interop tests vs browsers and websocat
+
+Fragmentation and continuation tests
+
+Fuzzing:
+
+Use cargo-fuzz AFL/LibFuzzer (C) for handshake and frame inputs
+
+CI requirements:
+
+Run unit + integration tests
+
+Run a reduced fuzzing session nightly
+
+Run benchmarks on PRs that touch hot paths

@@ -1,0 +1,13 @@
+---
+description: this is for the building of the application
+alwaysApply: false
+---
+Build instructions
+
+CMake with target for shared lib. Use clang/gcc with -O3, -march=native for CI optional.
+
+Linker flags to produce minimal symbol exports for FFI.
+
+Cross-platform:
+
+macOS arm64 build matrix in CI.
