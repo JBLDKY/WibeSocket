@@ -41,6 +41,16 @@ typedef struct wibesocket_conn {
     const uint8_t* pinned_payload;
     size_t         pinned_len;
     int            pinned_refcnt;
+
+    /* Send queue (non-blocking partial writes) */
+    uint8_t* send_buf;
+    size_t   send_size; /* total bytes in buffer */
+    size_t   send_off;  /* bytes already sent */
+    size_t   send_cap;  /* capacity */
+
+    /* Close handshake */
+    int      close_sent;
+    uint64_t close_sent_ms;
 } wibesocket_conn;
 
 static int set_nonblocking(int fd) {
@@ -138,6 +148,58 @@ static wibesocket_error_t do_handshake(wibesocket_conn* c, const char* host, int
     return WIBESOCKET_OK;
 }
 
+static uint64_t ws_now_ms(void) {
+    struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)(ts.tv_nsec / 1000000ULL);
+}
+
+static void ws_queue_init(wibesocket_conn* c) {
+    c->send_cap = 16384; /* initial */
+    c->send_buf = (uint8_t*)malloc(c->send_cap);
+    c->send_size = c->send_off = 0;
+}
+
+static void ws_queue_free(wibesocket_conn* c) {
+    free(c->send_buf); c->send_buf = NULL; c->send_cap = c->send_size = c->send_off = 0;
+}
+
+static int ws_queue_append(wibesocket_conn* c, const uint8_t* data, size_t len) {
+    if (!len) return 0;
+    size_t needed = (c->send_size - c->send_off) + len;
+    if (needed > c->send_cap) {
+        size_t new_cap = c->send_cap ? c->send_cap : 16384;
+        while (new_cap < needed) new_cap *= 2;
+        uint8_t* nb = (uint8_t*)realloc(c->send_buf, new_cap);
+        if (!nb) return -1;
+        /* compact existing data to start */
+        size_t remain = c->send_size - c->send_off;
+        memmove(nb, nb + c->send_off, remain);
+        c->send_buf = nb; c->send_off = 0; c->send_size = remain; c->send_cap = new_cap;
+    } else if (c->send_off > 0) {
+        size_t remain = c->send_size - c->send_off;
+        memmove(c->send_buf, c->send_buf + c->send_off, remain);
+        c->send_off = 0; c->send_size = remain;
+    }
+    memcpy(c->send_buf + c->send_size, data, len);
+    c->send_size += len;
+    return 0;
+}
+
+static void ws_flush_send(wibesocket_conn* c) {
+    while (c->send_off < c->send_size) {
+        ssize_t wr = send(c->fd, c->send_buf + c->send_off, c->send_size - c->send_off, 0);
+        if (wr > 0) {
+            c->send_off += (size_t)wr;
+        } else {
+            if (wr < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) return;
+            /* on other errors, drop queue */
+            c->send_off = c->send_size = 0; return;
+        }
+    }
+    /* all sent */
+    c->send_off = c->send_size = 0;
+}
+
 wibesocket_conn_t* wibesocket_connect(const char* uri, const wibesocket_config_t* config) {
     if (!uri) return NULL;
     char *host = NULL, *port = NULL, *path = NULL;
@@ -152,6 +214,7 @@ wibesocket_conn_t* wibesocket_connect(const char* uri, const wibesocket_config_t
     c->recv_buf = (uint8_t*)malloc(c->recv_cap);
     if (!c->recv_buf) { free(c); free(host); free(port); free(path); return NULL; }
     ws_parser_init(&c->parser, c->cfg.max_frame_size ? c->cfg.max_frame_size : (1U << 20));
+    ws_queue_init(c);
 
     c->fd = socket_connect_nb(host, port);
     if (c->fd < 0) { c->last_error = WIBESOCKET_ERROR_NETWORK; goto fail; }
@@ -195,10 +258,24 @@ static wibesocket_error_t send_frame(wibesocket_conn* c, ws_opcode_t opcode, con
     if (!buf) return WIBESOCKET_ERROR_MEMORY;
     size_t n = ws_build_frame(buf, need, 1, opcode, mask, (const uint8_t*)data, len);
     if (n == 0) { free(buf); return WIBESOCKET_ERROR_BUFFER_FULL; }
+    /* Try immediate send */
     ssize_t wr = send(c->fd, buf, n, 0);
+    if (wr == (ssize_t)n) { free(buf); return WIBESOCKET_OK; }
+    if (wr < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        /* queue entire frame */
+        int rc = ws_queue_append(c, buf, n);
+        free(buf);
+        if (rc < 0) return WIBESOCKET_ERROR_MEMORY;
+        return WIBESOCKET_OK;
+    }
+    if (wr >= 0 && (size_t)wr < n) {
+        int rc = ws_queue_append(c, buf + wr, n - (size_t)wr);
+        free(buf);
+        if (rc < 0) return WIBESOCKET_ERROR_MEMORY;
+        return WIBESOCKET_OK;
+    }
     free(buf);
-    if (wr < 0) return WIBESOCKET_ERROR_NETWORK;
-    return WIBESOCKET_OK;
+    return WIBESOCKET_ERROR_NETWORK;
 }
 
 wibesocket_error_t wibesocket_send_text(wibesocket_conn_t* conn, const char* text, size_t len) {
@@ -220,8 +297,9 @@ wibesocket_error_t wibesocket_send_close(wibesocket_conn_t* conn, uint16_t code,
         size_t rlen = strlen(reason); if (rlen > 125) rlen = 125;
         memcpy(payload + n, reason, rlen); n += rlen;
     }
-    wibesocket_error_t e = send_frame((wibesocket_conn*)conn, WS_OPCODE_CLOSE, payload, n);
-    if (e == WIBESOCKET_OK) ((wibesocket_conn*)conn)->state = WIBESOCKET_STATE_CLOSING;
+    wibesocket_conn* c = (wibesocket_conn*)conn;
+    wibesocket_error_t e = send_frame(c, WS_OPCODE_CLOSE, payload, n);
+    if (e == WIBESOCKET_OK) { c->state = WIBESOCKET_STATE_CLOSING; c->close_sent = 1; c->close_sent_ms = ws_now_ms(); }
     return e;
 }
 
@@ -229,6 +307,8 @@ wibesocket_error_t wibesocket_recv(wibesocket_conn_t* conn, wibesocket_message_t
     wibesocket_conn* c = (wibesocket_conn*)conn;
     if (!c || c->state != WIBESOCKET_STATE_OPEN) return WIBESOCKET_ERROR_NOT_READY;
     if (c->pinned_refcnt > 0) return WIBESOCKET_ERROR_NOT_READY;
+    /* Flush any pending sends */
+    ws_flush_send(c);
     int w = wait_epoll(c->epfd, timeout_ms);
     if (w <= 0) return WIBESOCKET_ERROR_TIMEOUT;
     ssize_t rd = recv(c->fd, c->recv_buf + c->recv_size, c->recv_cap - c->recv_size, 0);
@@ -292,9 +372,19 @@ static void safe_close(int* fd) { if (*fd >= 0) { close(*fd); *fd = -1; } }
 wibesocket_error_t wibesocket_close(wibesocket_conn_t* conn) {
     wibesocket_conn* c = (wibesocket_conn*)conn;
     if (!c) return WIBESOCKET_ERROR_INVALID_ARGS;
+    if (c->state == WIBESOCKET_STATE_OPEN) {
+        (void)wibesocket_send_close(conn, WIBESOCKET_CLOSE_NORMAL, NULL);
+    }
+    /* Wait briefly for peer CLOSE */
+    uint64_t start = ws_now_ms();
+    while (ws_now_ms() - start < 500) {
+        wibesocket_message_t m; memset(&m,0,sizeof(m));
+        if (wibesocket_recv(conn, &m, 50) == WIBESOCKET_ERROR_CLOSED) break;
+    }
     safe_close(&c->fd);
     safe_close(&c->epfd);
     free(c->recv_buf);
+    ws_queue_free(c);
     free(c);
     return WIBESOCKET_OK;
 }
