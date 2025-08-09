@@ -7,10 +7,10 @@ High-level API (Python)
 Async usage (asyncio):
 
 ```py
-from ultraws import WebSocketClient
+from wibesocket import WebSocket
 
 async def main():
-    ws = await WebSocketClient.connect("ws://127.0.0.1:9000")
+    ws = await WebSocket.connect("ws://127.0.0.1:9000")
     await ws.send(b"hello")             # non-blocking, awaits send completion
     msg = await ws.recv()                # memoryview/bytes — prefer memoryview when zero-copy
     await ws.close()
@@ -19,8 +19,8 @@ async def main():
 Sync usage:
 
 ```py
-from ultraws import WebSocketClient
-ws = WebSocketClient.connect_sync("ws://...")
+from wibesocket import WebSocket
+ws = WebSocket.connect_sync("ws://...")
 ws.send_sync(b"...")
 ws.close_sync()
 ```
