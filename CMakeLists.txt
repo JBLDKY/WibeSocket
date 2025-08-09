@@ -27,6 +27,11 @@ target_include_directories(test_handshake PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/in
 target_link_libraries(test_handshake PRIVATE wibesocket)
 add_test(NAME test_handshake COMMAND test_handshake)
 
+add_executable(test_parser tests/test_parser.c)
+target_include_directories(test_parser PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(test_parser PRIVATE wibesocket)
+add_test(NAME test_parser COMMAND test_parser)
+
 # examples
 add_executable(example_simple_echo examples/simple_echo.c)
 target_include_directories(example_simple_echo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
