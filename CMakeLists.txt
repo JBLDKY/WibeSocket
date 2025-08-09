@@ -59,3 +59,15 @@ add_executable(bench_latency bench/bench_latency.c)
 target_include_directories(bench_latency PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(bench_latency PRIVATE wibesocket)
 
+# optional: libwebsockets client benchmark
+find_package(PkgConfig QUIET)
+if (PkgConfig_FOUND)
+  pkg_check_modules(LWS QUIET libwebsockets)
+  if (LWS_FOUND)
+    add_executable(bench_lws_client bench/bench_lws_client.c)
+    target_include_directories(bench_lws_client PRIVATE ${LWS_INCLUDE_DIRS})
+    target_link_directories(bench_lws_client PRIVATE ${LWS_LIBRARY_DIRS})
+    target_link_libraries(bench_lws_client PRIVATE ${LWS_LIBRARIES})
+  endif()
+endif()
+

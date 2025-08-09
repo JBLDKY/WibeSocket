@@ -1,29 +1,56 @@
 {
-  "uri": "ws://127.0.0.1:43451/",
+  "uri": "ws://127.0.0.1:45921/",
   "throughput": {
     "125": {
-      "ours_msgs_per_sec": 1724137.93,
-      "websockets_msgs_per_sec": 13881.639867635979
+      "ours_msgs_per_sec": 1851851.85,
+      "websockets_msgs_per_sec": 16437.934344476726,
+      "websocket_client_msgs_per_sec": 34848.10452628441,
+      "aiohttp_msgs_per_sec": 27553.265124855567,
+      "websocat_msgs_per_sec": null,
+      "libwebsockets_msgs_per_sec": null
     },
     "16384": {
-      "ours_msgs_per_sec": 133333.33,
-      "websockets_msgs_per_sec": 6371.250609328526
+      "ours_msgs_per_sec": 140056.02,
+      "websockets_msgs_per_sec": 7343.795758618429,
+      "websocket_client_msgs_per_sec": 16603.630099464168,
+      "aiohttp_msgs_per_sec": 24473.84773024682,
+      "websocat_msgs_per_sec": null,
+      "libwebsockets_msgs_per_sec": null
     },
     "65536": {
-      "ours_msgs_per_sec": 40387.72,
-      "websockets_msgs_per_sec": 1102.7547589003532
+      "ours_msgs_per_sec": 41981.53,
+      "websockets_msgs_per_sec": 2775.7720157142203,
+      "websocket_client_msgs_per_sec": 5123.938272399352,
+      "aiohttp_msgs_per_sec": 10652.920535714296,
+      "websocat_msgs_per_sec": null,
+      "libwebsockets_msgs_per_sec": null
     }
   },
   "latency": {
     "ours_ms": {
-      "p50": 0.001,
+      "p50": 0.0,
       "p90": 0.002,
-      "p99": 0.006
+      "p99": 0.004
     },
     "websockets_ms": {
-      "p50": 0.19507399974827422,
-      "p90": 0.19802199949481292,
-      "p99": 0.25379599992447766
+      "p50": 0.06976599979680032,
+      "p90": 0.07254100091813598,
+      "p99": 0.08899099884729367
+    },
+    "websocket_client_ms": {
+      "p50": 0.03436899896769319,
+      "p90": 0.03517000004649162,
+      "p99": 0.03726499926415272
+    },
+    "aiohttp_ms": {
+      "p50": 0.03893599932780489,
+      "p90": 0.039866999941295944,
+      "p99": 0.042192999899270944
+    },
+    "websocat_ms": {
+      "p50": null,
+      "p90": null,
+      "p99": null
     }
   }
 }
