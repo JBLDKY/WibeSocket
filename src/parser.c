@@ -9,6 +9,14 @@ static void ws_apply_mask(uint8_t* dst, const uint8_t* src, size_t len, const ui
     for (size_t i = 0; i < len; i++) dst[i] = (uint8_t)(src[i] ^ mask[i & 3]);
 }
 
+static bool ws_is_valid_close_code(uint16_t code) {
+    if (code == 1000 || code == 1001 || code == 1002 || code == 1003 ||
+        code == 1007 || code == 1008 || code == 1009 || code == 1010 ||
+        code == 1011) return true;
+    /* 1004 reserved; 1005/1006 not to be sent; 1015 TLS; 0-999 invalid; 1016-2999 reserved */
+    return false;
+}
+
 void ws_parser_init(ws_parser_t* p, uint64_t max_frame_size) {
     memset(p, 0, sizeof(*p));
     p->max_frame_size = max_frame_size ? max_frame_size : (1ULL << 20);
@@ -137,6 +145,18 @@ ws_parser_status_t ws_parser_feed(ws_parser_t* p,
         f.payload_len > 0) {
         if (!ws_utf8_is_valid((const uint8_t*)f.payload, f.payload_len)) {
             return WS_PARSER_ERROR_PROTOCOL;
+        }
+    }
+
+    if (p->cur.opcode == WS_OPCODE_CLOSE) {
+        /* Payload must be 0 or >= 2. If >=2, first 2 bytes are code, rest is UTF-8 reason */
+        if (p->cur.payload_len == 1) return WS_PARSER_ERROR_PROTOCOL;
+        if (p->cur.payload_len >= 2) {
+            const uint8_t* b = (const uint8_t*)f.payload;
+            uint16_t code = ((uint16_t)b[0] << 8) | (uint16_t)b[1];
+            if (!ws_is_valid_close_code(code)) return WS_PARSER_ERROR_PROTOCOL;
+            size_t rlen = f.payload_len - 2;
+            if (rlen > 0 && !ws_utf8_is_valid(b + 2, rlen)) return WS_PARSER_ERROR_PROTOCOL;
         }
     }
 

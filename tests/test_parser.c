@@ -100,11 +100,36 @@ static void test_utf8_validation(void) {
     assert(s == WS_PARSER_ERROR_PROTOCOL);
 }
 
+static void test_close_frame_validation(void) {
+    ws_parser_t p; ws_parser_init(&p, 1 << 20);
+    uint8_t buf[64];
+    /* Valid close with code 1000 and UTF-8 reason 'ok' */
+    const uint8_t payload1[] = {0x03, 0xE8, 'o', 'k'}; /* 1000 */
+    size_t n = make_frame(buf, sizeof(buf), 1, 0x8, 0, NULL, payload1, sizeof(payload1));
+    size_t c=0; ws_parsed_frame_t f; ws_parser_status_t s = ws_parser_feed(&p, buf, n, &c, &f);
+    assert(s == WS_PARSER_FRAME);
+
+    /* Invalid close: payload len 1 */
+    ws_parser_init(&p, 1 << 20);
+    const uint8_t payload2[] = {0x03};
+    n = make_frame(buf, sizeof(buf), 1, 0x8, 0, NULL, payload2, sizeof(payload2));
+    c=0; s = ws_parser_feed(&p, buf, n, &c, &f);
+    assert(s == WS_PARSER_ERROR_PROTOCOL);
+
+    /* Invalid close code 1005 (not to be sent) */
+    ws_parser_init(&p, 1 << 20);
+    const uint8_t payload3[] = {0x03, 0xED}; /* 1005 */
+    n = make_frame(buf, sizeof(buf), 1, 0x8, 0, NULL, payload3, sizeof(payload3));
+    c=0; s = ws_parser_feed(&p, buf, n, &c, &f);
+    assert(s == WS_PARSER_ERROR_PROTOCOL);
+}
+
 int main(void) {
     test_short_payload_unmasked();
     test_extended_16_unmasked();
     test_control_frame_rules();
     test_utf8_validation();
+    test_close_frame_validation();
     printf("test_parser OK\n");
     return 0;
 }
