@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import argparse
 import asyncio
+import urllib.parse
+import json
+import socket
 import os
 import subprocess
 import sys
@@ -32,32 +35,46 @@ def ensure_built() -> None:
                 sys.exit(2)
 
 
-async def ws_websockets_throughput(uri: str, payload_len: int, count: int) -> float:
+async def ws_websockets_throughput(uri: str, payload_len: int, count: int, timeout_s: float = 5.0) -> float:
     try:
         import websockets  # type: ignore
     except Exception:
         return float("nan")
     payload = b"A" * payload_len
     start = time.perf_counter()
-    async with websockets.connect(uri, max_size=None) as ws:
+    try:
+        conn = await asyncio.wait_for(websockets.connect(uri, max_size=None), timeout=timeout_s)
+    except Exception:
+        return float("nan")
+    async with conn as ws:
         for _ in range(count):
-            await ws.send(payload)
-            await ws.recv()
+            try:
+                await asyncio.wait_for(ws.send(payload), timeout=timeout_s)
+                await asyncio.wait_for(ws.recv(), timeout=timeout_s)
+            except Exception:
+                break
     elapsed = time.perf_counter() - start
     return count / elapsed if elapsed > 0 else float("inf")
 
 
-async def ws_websockets_latency(uri: str, iters: int) -> Tuple[float, float, float]:
+async def ws_websockets_latency(uri: str, iters: int, timeout_s: float = 5.0) -> Tuple[float, float, float]:
     try:
         import websockets  # type: ignore
     except Exception:
         return (float("nan"), float("nan"), float("nan"))
     samples = []
-    async with websockets.connect(uri, max_size=None) as ws:
+    try:
+        conn = await asyncio.wait_for(websockets.connect(uri, max_size=None), timeout=timeout_s)
+    except Exception:
+        return (float("nan"), float("nan"), float("nan"))
+    async with conn as ws:
         for _ in range(iters):
             t0 = time.perf_counter()
-            await ws.send(b"x")
-            await ws.recv()
+            try:
+                await asyncio.wait_for(ws.send(b"x"), timeout=timeout_s)
+                await asyncio.wait_for(ws.recv(), timeout=timeout_s)
+            except Exception:
+                break
             t1 = time.perf_counter()
             samples.append((t1 - t0) * 1000.0)
     samples.sort()
@@ -115,7 +132,55 @@ def main() -> None:
         print("Provide URI via arg or WIBESOCKET_BENCH_URI", file=sys.stderr)
         sys.exit(2)
 
+    # Auto-start a local echo server if URI targets localhost and 'websockets' is available
+    echo_proc = None
+    echo_thread = None
+    echo_stop = None
+    try:
+        parsed = urllib.parse.urlsplit(args.uri)
+        host = parsed.hostname or ""
+        port = parsed.port
+        if host in ("127.0.0.1", "localhost", "::1"):
+            try:
+                import websockets  # type: ignore
+                import threading, queue
+                addr_host = host if host != "localhost" else "127.0.0.1"
+                port_q: "queue.Queue[int]" = queue.Queue(maxsize=1)
+                stop_ev = threading.Event()
+
+                def _run_server():
+                    import asyncio as _aio
+                    async def echo(ws):
+                        async for m in ws:
+                            await ws.send(m)
+                    async def runner():
+                        server = await websockets.serve(echo, addr_host, 0, max_size=None)
+                        sel_port = server.sockets[0].getsockname()[1]
+                        port_q.put(sel_port)
+                        try:
+                            while not stop_ev.is_set():
+                                await _aio.sleep(0.1)
+                        finally:
+                            server.close()
+                            await server.wait_closed()
+                    _aio.run(runner())
+
+                t = threading.Thread(target=_run_server, daemon=True)
+                t.start()
+                try:
+                    sel_port = port_q.get(timeout=5.0)
+                    args.uri = f"ws://{addr_host}:{sel_port}/"
+                    echo_thread = t
+                    echo_stop = stop_ev
+                except Exception:
+                    print("Warning: local echo server failed to start within timeout", file=sys.stderr)
+            except Exception:
+                print("Note: couldn't auto-start local echo server (install 'websockets' in this interpreter)", file=sys.stderr)
+    except Exception:
+        pass
+
     print(f"URI: {args.uri}")
+    results = {"uri": args.uri, "throughput": {}, "latency": {}}
     print("== Throughput (round-trip msgs/s) ==")
     for sz in args.sizes:
         ours = bench_ours_throughput(args.uri, sz, args.count)
@@ -125,6 +190,11 @@ def main() -> None:
             print(f" websockets sz={sz:6d}: {t:.2f} msgs/s")
         except Exception as e:
             print(f" websockets sz={sz:6d}: n/a ({e})")
+            t = None
+        results["throughput"][str(sz)] = {
+            "ours_msgs_per_sec": float(ours) if ours else None,
+            "websockets_msgs_per_sec": float(t) if t else None,
+        }
 
     print("\n== Latency (ms) ==")
     ol = bench_ours_latency(args.uri, args.iters)
@@ -135,8 +205,54 @@ def main() -> None:
         print(f" websockets: p50={p50:.3f} p90={p90:.3f} p99={p99:.3f}")
     except Exception as e:
         print(f" websockets: n/a ({e})")
+        p50 = p90 = p99 = None
+
+    if ol:
+        results["latency"]["ours_ms"] = {"p50": float(ol[0]), "p90": float(ol[1]), "p99": float(ol[2])}
+    else:
+        results["latency"]["ours_ms"] = {"p50": None, "p90": None, "p99": None}
+    results["latency"]["websockets_ms"] = {"p50": (float(p50) if p50 is not None else None),
+                                              "p90": (float(p90) if p90 is not None else None),
+                                              "p99": (float(p99) if p99 is not None else None)}
 
     print("\nTip: install 'websockets' for Python comparison: pip install websockets")
+
+    # Persist JSON and Markdown summary in bench/
+    out_dir = os.path.join(ROOT, "bench", "results")
+    os.makedirs(out_dir, exist_ok=True)
+    json_path = os.path.join(out_dir, "latest.json")
+    with open(json_path, "w") as f:
+        json.dump(results, f, indent=2)
+
+    md_lines = []
+    md_lines.append(f"# WibeSocket Benchmarks\n\nURI: `{results['uri']}`\n")
+    md_lines.append("## Throughput (msgs/s)\n")
+    md_lines.append("| Size | Ours | websockets |\n|---:|---:|---:|")
+    for sz in args.sizes:
+        row = results["throughput"].get(str(sz), {})
+        ours_v = row.get("ours_msgs_per_sec")
+        ws_v = row.get("websockets_msgs_per_sec")
+        md_lines.append(f"| {sz} | {ours_v if ours_v is not None else 'n/a'} | {ws_v if ws_v is not None else 'n/a'} |")
+    md_lines.append("\n## Latency (ms)\n")
+    lm = results["latency"]
+    md_lines.append("| Impl | p50 | p90 | p99 |\n|:--|--:|--:|--:|")
+    om = lm.get("ours_ms", {})
+    wm = lm.get("websockets_ms", {})
+    md_lines.append(f"| Ours | {om.get('p50','n/a')} | {om.get('p90','n/a')} | {om.get('p99','n/a')} |")
+    md_lines.append(f"| websockets | {wm.get('p50','n/a')} | {wm.get('p90','n/a')} | {wm.get('p99','n/a')} |\n")
+    md_path = os.path.join(ROOT, "bench", "RESULTS.md")
+    with open(md_path, "w") as f:
+        f.write("\n".join(md_lines) + "\n")
+    print(f"\nSaved: {json_path}\nSaved: {md_path}")
+
+    # Tear down local echo server if we started one
+    if echo_proc is not None:
+        try:
+            echo_proc.terminate()
+        except Exception:
+            pass
+    if echo_stop is not None:
+        echo_stop.set()
 
 if __name__ == "__main__":
     main()

@@ -10,8 +10,10 @@ test: build
 example: build
 	./build/example_simple_echo ws://echo.websocket.events/
 
+PYTHON ?= $(shell if [ -n "$$VIRTUAL_ENV" ]; then echo $$VIRTUAL_ENV/bin/python; elif command -v python3 >/dev/null 2>&1; then command -v python3; else command -v python; fi)
+
 bench: build
-	python3 bench/run_bench.py $(URI)
+	$(PYTHON) bench/run_bench.py $(URI)
 
 clean:
 	rm -rf build
