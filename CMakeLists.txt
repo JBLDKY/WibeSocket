@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(wibesocket SHARED
-  src/wibesocket_stub.c
+  src/wibesocket.c
   src/parser.c
   src/event_loop.c
   src/internal/sha1.c
