@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/test_wibesocket.dir/tests/test_wibesocket.c.o -o test_wibesocket  -Wl,-rpath,/home/jord/Documents/gross/wibesocket/WibeSocket/build libwibesocket.so

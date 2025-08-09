@@ -1,0 +1,6 @@
+/home/jord/Documents/gross/wibesocket/WibeSocket/build/CMakeFiles/wibesocket.dir
+/home/jord/Documents/gross/wibesocket/WibeSocket/build/CMakeFiles/test_wibesocket.dir
+/home/jord/Documents/gross/wibesocket/WibeSocket/build/CMakeFiles/example_simple_echo.dir
+/home/jord/Documents/gross/wibesocket/WibeSocket/build/CMakeFiles/test.dir
+/home/jord/Documents/gross/wibesocket/WibeSocket/build/CMakeFiles/edit_cache.dir
+/home/jord/Documents/gross/wibesocket/WibeSocket/build/CMakeFiles/rebuild_cache.dir

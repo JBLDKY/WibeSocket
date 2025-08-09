@@ -1,0 +1,1 @@
+/usr/bin/cc CMakeFiles/example_simple_echo.dir/examples/simple_echo.c.o -o example_simple_echo  -Wl,-rpath,/home/jord/Documents/gross/wibesocket/WibeSocket/build libwibesocket.so
