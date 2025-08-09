@@ -1,0 +1,17 @@
+site_name: WibeSocket Python API
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - API:
+    - WebSocket: api/websocket.md
+    - AsyncWebSocket: api/asyncwebsocket.md
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            docstring_style: google
+
+

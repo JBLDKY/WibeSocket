@@ -1,0 +1,3 @@
+# WebSocket
+
+::: wibesocket.wrappers.WebSocket

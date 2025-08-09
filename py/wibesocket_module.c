@@ -130,9 +130,9 @@ static PyMethodDef Methods[] = {
 };
 
 static struct PyModuleDef module = {
-    PyModuleDef_HEAD_INIT, "wibesocket", NULL, -1, Methods
+    PyModuleDef_HEAD_INIT, "wibesocket._core", NULL, -1, Methods
 };
 
-PyMODINIT_FUNC PyInit_wibesocket(void) { return PyModule_Create(&module); }
+PyMODINIT_FUNC PyInit__core(void) { return PyModule_Create(&module); }
 
 
