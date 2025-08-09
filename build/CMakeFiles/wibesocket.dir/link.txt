@@ -1,1 +1,0 @@
-/usr/bin/cc -fPIC -shared -Wl,-soname,libwibesocket.so -o libwibesocket.so CMakeFiles/wibesocket.dir/src/wibesocket_stub.c.o CMakeFiles/wibesocket.dir/src/parser.c.o CMakeFiles/wibesocket.dir/src/event_loop.c.o
