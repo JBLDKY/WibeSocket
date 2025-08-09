@@ -1,0 +1,53 @@
+# Build artifacts
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+Testing/
+DartConfiguration.tcl
+
+# Compiled objects and libraries
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.lib
+*.exe
+*.pdb
+
+# Coverage and profiling
+*.gcda
+*.gcno
+*.gcov
+*.prof
+*.profraw
+*.lcov
+
+# Logs and tags
+*.log
+tags
+
+# Python build artifacts
+__pycache__/
+*.pyc
+py/build/
+py/dist/
+py/*.egg-info/
+
+# Editors/OS
+.DS_Store
+.idea/
+.vscode/
+.venv/
+*.swp
+*.swo
+
+# Misc
+core
+*.core
+
+
