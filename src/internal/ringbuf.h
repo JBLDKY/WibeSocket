@@ -10,7 +10,7 @@ typedef struct {
     size_t   capacity;
     size_t   head;  /* write index */
     size_t   tail;  /* read index */
-    bool     full;
+    size_t   count; /* bytes stored */
 } ws_ringbuf_t;
 
 int  ws_ringbuf_init(ws_ringbuf_t* rb, size_t capacity);

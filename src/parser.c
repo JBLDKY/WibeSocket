@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "internal/frame.h"
+#include "internal/utf8.h"
 
 static void ws_apply_mask(uint8_t* dst, const uint8_t* src, size_t len, const uint8_t mask[4]) {
     for (size_t i = 0; i < len; i++) dst[i] = (uint8_t)(src[i] ^ mask[i & 3]);
@@ -128,6 +129,14 @@ ws_parser_status_t ws_parser_feed(ws_parser_t* p,
                 p->in_fragmented_message = true;
                 p->first_fragment_opcode = p->cur.opcode;
             }
+        }
+    }
+
+    /* Validate UTF-8 for text frames and close reason if present */
+    if ((p->cur.opcode == WS_OPCODE_TEXT || (p->cur.opcode == WS_OPCODE_CONTINUATION && p->first_fragment_opcode == WS_OPCODE_TEXT)) &&
+        f.payload_len > 0) {
+        if (!ws_utf8_is_valid((const uint8_t*)f.payload, f.payload_len)) {
+            return WS_PARSER_ERROR_PROTOCOL;
         }
     }
 

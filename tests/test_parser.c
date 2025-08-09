@@ -83,10 +83,28 @@ static void test_control_frame_rules(void) {
     assert(s == WS_PARSER_ERROR_PROTOCOL);
 }
 
+static void test_utf8_validation(void) {
+    ws_parser_t p; ws_parser_init(&p, 1 << 20);
+    uint8_t buf[64];
+    /* Valid UTF-8: 'hello' */
+    const uint8_t hello[] = {'h','e','l','l','o'};
+    size_t n = make_frame(buf, sizeof(buf), 1, 0x1, 0, NULL, hello, sizeof(hello));
+    size_t c=0; ws_parsed_frame_t f; ws_parser_status_t s = ws_parser_feed(&p, buf, n, &c, &f);
+    assert(s == WS_PARSER_FRAME);
+
+    /* Invalid UTF-8: overlong encoding of 'A' (0xC1 0x81) */
+    ws_parser_init(&p, 1 << 20);
+    const uint8_t bad[] = {0xC1, 0x81};
+    n = make_frame(buf, sizeof(buf), 1, 0x1, 0, NULL, bad, sizeof(bad));
+    c=0; s = ws_parser_feed(&p, buf, n, &c, &f);
+    assert(s == WS_PARSER_ERROR_PROTOCOL);
+}
+
 int main(void) {
     test_short_payload_unmasked();
     test_extended_16_unmasked();
     test_control_frame_rules();
+    test_utf8_validation();
     printf("test_parser OK\n");
     return 0;
 }
