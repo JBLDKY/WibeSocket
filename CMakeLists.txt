@@ -50,3 +50,12 @@ add_executable(example_simple_echo examples/simple_echo.c)
 target_include_directories(example_simple_echo PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(example_simple_echo PRIVATE wibesocket)
 
+# benchmarks
+add_executable(bench_throughput bench/bench_throughput.c)
+target_include_directories(bench_throughput PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(bench_throughput PRIVATE wibesocket)
+
+add_executable(bench_latency bench/bench_latency.c)
+target_include_directories(bench_latency PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(bench_latency PRIVATE wibesocket)
+

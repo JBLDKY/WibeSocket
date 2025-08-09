@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
+#include <netinet/tcp.h>
 #if defined(__linux__)
 #include <sys/random.h>
 #endif
@@ -187,7 +188,12 @@ static int ws_queue_append(wibesocket_conn* c, const uint8_t* data, size_t len) 
 
 static void ws_flush_send(wibesocket_conn* c) {
     while (c->send_off < c->send_size) {
-        ssize_t wr = send(c->fd, c->send_buf + c->send_off, c->send_size - c->send_off, 0);
+        #ifdef MSG_NOSIGNAL
+        const int send_flags = MSG_NOSIGNAL;
+        #else
+        const int send_flags = 0;
+        #endif
+        ssize_t wr = send(c->fd, c->send_buf + c->send_off, c->send_size - c->send_off, send_flags);
         if (wr > 0) {
             c->send_off += (size_t)wr;
         } else {
@@ -218,6 +224,12 @@ wibesocket_conn_t* wibesocket_connect(const char* uri, const wibesocket_config_t
 
     c->fd = socket_connect_nb(host, port);
     if (c->fd < 0) { c->last_error = WIBESOCKET_ERROR_NETWORK; goto fail; }
+    /* Low-latency TCP settings */
+    {
+        int one = 1; (void)setsockopt(c->fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+        int buf = 1 << 20; (void)setsockopt(c->fd, SOL_SOCKET, SO_SNDBUF, &buf, sizeof(buf));
+        (void)setsockopt(c->fd, SOL_SOCKET, SO_RCVBUF, &buf, sizeof(buf));
+    }
     c->epfd = epoll_create1(EPOLL_CLOEXEC);
     if (c->epfd < 0) { c->last_error = WIBESOCKET_ERROR_NETWORK; goto fail; }
     if (ep_add_out(c->epfd, c->fd) < 0) { c->last_error = WIBESOCKET_ERROR_NETWORK; goto fail; }
@@ -259,7 +271,12 @@ static wibesocket_error_t send_frame(wibesocket_conn* c, ws_opcode_t opcode, con
     size_t n = ws_build_frame(buf, need, 1, opcode, mask, (const uint8_t*)data, len);
     if (n == 0) { free(buf); return WIBESOCKET_ERROR_BUFFER_FULL; }
     /* Try immediate send */
-    ssize_t wr = send(c->fd, buf, n, 0);
+    #ifdef MSG_NOSIGNAL
+    const int send_flags = MSG_NOSIGNAL;
+    #else
+    const int send_flags = 0;
+    #endif
+    ssize_t wr = send(c->fd, buf, n, send_flags);
     if (wr == (ssize_t)n) { free(buf); return WIBESOCKET_OK; }
     if (wr < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
         /* queue entire frame */
